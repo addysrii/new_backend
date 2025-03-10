@@ -14,6 +14,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
 const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
 const REDIRECT_URI = `${BASE_URL}/auth/linkedin/callback`;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // Initialize Twilio client if credentials are available
 const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN 
@@ -574,12 +575,13 @@ exports.googleCallback = async (req, res) => {
     const { user } = req;
     
     if (!user) {
+      console.error('Google callback: No user data received from passport');
       // Redirect to frontend with error
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`);
+      return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
     }
     
     // Extract redirectTo from state if it exists
-    let redirectTo = null;
+    let redirectTo = '/dashboard';
     if (req.query.state) {
       try {
         const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
@@ -591,36 +593,41 @@ exports.googleCallback = async (req, res) => {
       }
     }
     
-    // Update user session and create JWT token
+    // Check if this is a new user
+    // Use both explicit isNewUser flag from passport strategy and created timestamp
+    const isNewUser = user.isNewUser || 
+        (user.createdAt && ((new Date() - new Date(user.createdAt)) < 60000)); // Created within last minute
+    
+    console.log('Is new user:', isNewUser);
+    console.log('User creation time:', user.createdAt);
+    
+    // Generate token
     const token = generateToken(user._id, user.email);
     
     // Update session info
     updateUserSession(
       user, 
       token, 
-      req.query.deviceToken || 'web',
+      'web',
       req.ip
     );
     
     user.lastActive = new Date();
     user.online = true;
     
-    // Check if this is a new user
-    const isNewUser = user.isNewUser === true;
-    
     await user.save();
     
     // Construct the redirect URL
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl = redirectTo || 
-      `${frontendUrl}/auth/callback?token=${token}&isNewUser=${isNewUser}`;
+    const redirectUrl = `${FRONTEND_URL}/auth/callback?token=${token}&isNewUser=${isNewUser ? 'true' : 'false'}&redirect=${encodeURIComponent(redirectTo)}`;
+    
+    console.log(`Google callback: Redirecting to ${redirectUrl}`);
     
     // Redirect to frontend with token
     return res.redirect(redirectUrl);
   } catch (error) {
     console.error('Google callback error:', error);
     // Redirect to frontend with error
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=server_error`);
+    return res.redirect(`${FRONTEND_URL}/login?error=server_error`);
   }
 };
 
@@ -631,12 +638,22 @@ exports.googleCallback = async (req, res) => {
  */
 exports.linkedinRedirect = (req, res) => {
   try {
-    const state = crypto.randomBytes(16).toString('hex');
+    // Store the intended redirect destination if provided
+    const redirectTo = req.query.redirectTo || '/dashboard';
+    
+    // Create state parameter with redirect info and random string for CSRF protection
+    const state = Buffer.from(JSON.stringify({
+      redirectTo,
+      csrf: crypto.randomBytes(16).toString('hex'),
+      timestamp: Date.now()
+    })).toString('base64');
     
     // Store state in session/cookie for validation on callback
     res.cookie('linkedin_oauth_state', state, { 
       httpOnly: true, 
-      maxAge: 10 * 60 * 1000 // 10 minutes
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
     });
     
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
@@ -646,10 +663,11 @@ exports.linkedinRedirect = (req, res) => {
       `state=${state}&` +
       `scope=r_liteprofile,r_emailaddress`;
     
+    console.log(`LinkedIn redirect: Redirecting to ${authUrl}`);
     res.redirect(authUrl);
   } catch (error) {
     console.error('LinkedIn redirect error:', error);
-    res.redirect('/login?error=linkedin_redirect_failed');
+    res.redirect(`${FRONTEND_URL}/login?error=linkedin_redirect_failed`);
   }
 };
 
@@ -665,15 +683,19 @@ exports.linkedinCallback = async (req, res) => {
     
     // Validate state to prevent CSRF
     if (!state || !storedState || state !== storedState) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=invalid_state`);
+      console.error('LinkedIn callback: Invalid state', { 
+        receivedState: state, 
+        storedState: storedState 
+      });
+      return res.redirect(`${FRONTEND_URL}/login?error=invalid_state`);
     }
     
-    // Extract redirectTo from state if it exists
-    let customRedirectUrl = null;
+    // Extract redirectTo from state
+    let redirectTo = '/dashboard';
     try {
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
       if (stateData && stateData.redirectTo) {
-        customRedirectUrl = stateData.redirectTo;
+        redirectTo = stateData.redirectTo;
       }
     } catch (error) {
       console.error('Error parsing state:', error);
@@ -683,17 +705,17 @@ exports.linkedinCallback = async (req, res) => {
     res.clearCookie('linkedin_oauth_state');
     
     // Exchange code for access token
+    console.log('LinkedIn callback: Exchanging code for token');
     const tokenResponse = await axios.post(
       'https://www.linkedin.com/oauth/v2/accessToken',
-      null,
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI,
+        client_id: LINKEDIN_CLIENT_ID,
+        client_secret: LINKEDIN_CLIENT_SECRET
+      }).toString(),
       {
-        params: {
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: REDIRECT_URI,
-          client_id: LINKEDIN_CLIENT_ID,
-          client_secret: LINKEDIN_CLIENT_SECRET
-        },
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
@@ -703,6 +725,7 @@ exports.linkedinCallback = async (req, res) => {
     const accessToken = tokenResponse.data.access_token;
     
     // Get user profile
+    console.log('LinkedIn callback: Getting user profile');
     const profileResponse = await axios.get(
       'https://api.linkedin.com/v2/me',
       {
@@ -713,6 +736,7 @@ exports.linkedinCallback = async (req, res) => {
     );
     
     // Get email address
+    console.log('LinkedIn callback: Getting user email');
     const emailResponse = await axios.get(
       'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
       {
@@ -728,11 +752,14 @@ exports.linkedinCallback = async (req, res) => {
     const lastName = profile.localizedLastName;
     const email = emailResponse.data.elements[0]['handle~'].emailAddress;
     
+    console.log('LinkedIn user data:', { linkedinId, firstName, lastName, email });
+    
     // Find or create user
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ $or: [{ linkedinId }, { email }] });
     let isNewUser = false;
     
     if (!user) {
+      console.log('LinkedIn callback: Creating new user');
       user = await User.create({
         email,
         firstName,
@@ -744,10 +771,14 @@ exports.linkedinCallback = async (req, res) => {
       });
       isNewUser = true;
     } else if (user.authProvider !== 'linkedin') {
-      // User exists but with different auth provider
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=account_exists&provider=${user.authProvider}`);
+      // User exists but with different auth provider - update with LinkedIn data
+      console.log(`LinkedIn callback: Updating existing user with LinkedIn data, current provider: ${user.authProvider}`);
+      user.linkedinId = linkedinId;
+      user.authProvider = 'linkedin';
+      await user.save();
     } else {
       // Update profile if needed
+      console.log('LinkedIn callback: Updating existing LinkedIn user');
       user.firstName = firstName;
       user.lastName = lastName;
       user.linkedinId = linkedinId;
@@ -768,17 +799,20 @@ exports.linkedinCallback = async (req, res) => {
     
     await user.save();
     
-    // Construct the frontend URL
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // Construct the redirect URL
+    const redirectUrl = `${FRONTEND_URL}/auth/callback?token=${token}&isNewUser=${isNewUser ? 'true' : 'false'}&redirect=${encodeURIComponent(redirectTo)}`;
     
-    // Redirect with token and new user flag
-    const redirectUrl = customRedirectUrl || 
-      `${frontendUrl}/auth/callback?token=${token}&isNewUser=${isNewUser}`;
+    console.log(`LinkedIn callback: Redirecting to ${redirectUrl}`);
     
     return res.redirect(redirectUrl);
   } catch (error) {
     console.error('LinkedIn callback error:', error);
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=linkedin_auth_failed`);
+    
+    if (error.response) {
+      console.error('LinkedIn API error response:', error.response.data);
+    }
+    
+    return res.redirect(`${FRONTEND_URL}/login?error=linkedin_auth_failed`);
   }
 };
 
