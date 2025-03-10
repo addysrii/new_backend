@@ -4,7 +4,10 @@ const passport = require('passport');
 const crypto = require('crypto');
 const authController = require('../controllers/auth.controller.js');
 const { authenticateToken } = require('../middleware/auth.middleware.js');
-
+const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
+const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
+const JWT_SECRET = process.env.JWT_SECRET;
 // Helper function to encode state with redirectTo
 const encodeStateWithRedirect = (redirectTo) => {
   const stateData = {
@@ -28,88 +31,148 @@ router.post('/phone/verify', authController.verifyPhone);
 // Two-factor authentication
 router.post('/2fa/setup', authenticateToken, authController.setupTwoFactor);
 
-// Google authentication
-router.get('/google', (req, res, next) => {
-  // Store redirectTo in state parameter if provided
-  const state = encodeStateWithRedirect(req.query.redirectTo);
+router.get('/linkedin', (req, res) => {
+  // Store the intended redirect destination if provided
+  const redirectTo = req.query.redirectTo || '/dashboard';
+  // Store it in the session for use after authentication
+  req.session.redirectTo = redirectTo;
   
-  // Store state in cookie for verification on callback
-  res.cookie('google_oauth_state', state, { 
-    httpOnly: true, 
-    maxAge: 10 * 60 * 1000 // 10 minutes
-  });
-  
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'],
-    state
-  })(req, res, next);
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=openid%20profile%20email`;
+  res.redirect(authUrl);
 });
 
-// In auth.routes.js, update the Google callback route:
+router.get('/linkedin/callback', async (req, res) => {
+  const authorizationCode = req.query.code;
 
-router.get('/google/callback', 
-  // Middleware to verify state and extract redirectTo
-  (req, res, next) => {
-    const cookieState = req.cookies.google_oauth_state;
-    const queryState = req.query.state;
-    
-    if (!cookieState || !queryState || cookieState !== queryState) {
-      // Redirect to frontend with error instead of local route
-      return res.redirect('https://meetkats.com/login?error=invalid_state');
-    }
-    
-    // Extract redirectTo from state
-    try {
-      const stateData = JSON.parse(Buffer.from(queryState, 'base64').toString());
-      if (stateData.redirectTo) {
-        req.redirectTo = stateData.redirectTo;
-      }
-    } catch (error) {
-      console.error('Error parsing state:', error);
-    }
-    
-    // Clear the state cookie
-    res.clearCookie('google_oauth_state');
-    next();
-  },
-  passport.authenticate('google', { 
-    session: false, 
-    // Redirect to frontend with error
-    failureRedirect: 'https://meetkats.com/login?error=auth_failed' 
-  }),
-  authController.googleCallback
-);
+  if (!authorizationCode) {
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+  }
 
-// Then update the googleCallback function in auth.controller.js:
-
-
-
-// LinkedIn authentication
-router.get('/linkedin', (req, res) => {
   try {
-    // Store redirectTo in state parameter if provided
-    const state = encodeStateWithRedirect(req.query.redirectTo);
+    // Create form data properly
+    const formData = new URLSearchParams();
+    formData.routerend('grant_type', 'authorization_code');
+    formData.routerend('code', authorizationCode);
+    formData.routerend('redirect_uri', REDIRECT_URI);
+    formData.routerend('client_id', LINKEDIN_CLIENT_ID);
+    formData.routerend('client_secret', LINKEDIN_CLIENT_SECRET);
+
+    const response = await axios.post(
+      'https://www.linkedin.com/oauth/v2/accessToken',
+      formData.toString(),
+      {
+        headers: {
+          'Content-Type': 'routerlication/x-www-form-urlencoded',
+        },
+      }
+    );
+
+    const { access_token } = response.data;
     
-    // Store state in cookie for validation on callback
-    res.cookie('linkedin_oauth_state', state, { 
-      httpOnly: true, 
-      maxAge: 10 * 60 * 1000 // 10 minutes
+    // Get user profile data with the access token
+    const profileResponse = await axios.get('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'cache-control': 'no-cache',
+      },
     });
     
-    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
-      `response_type=code&` +
-      `client_id=${process.env.LINKEDIN_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(`${process.env.BASE_URL}/auth/linkedin/callback`)}&` +
-      `state=${state}&` +
-      `scope=r_liteprofile,r_emailaddress`;
+    const linkedinId = profileResponse.data.id;
+    const email = profileResponse.data.email;
+    let firstName = profileResponse.data.localizedFirstName || profileResponse.data.firstName || profileResponse.data.given_name || 'Unknown';
+    let lastName = profileResponse.data.localizedLastName || profileResponse.data.lastName || profileResponse.data.family_name || 'User';
     
-    res.redirect(authUrl);
+    // Find or create user
+    let user = await User.findOne({ linkedinId });
+    let isNewUser = false;
+    
+    if (!user) {
+      // This is a new user
+      isNewUser = true;
+      user = await User.create({
+        linkedinId,
+        email,
+        firstName,
+        lastName,
+        authProvider: 'linkedin',
+        createdAt: new Date() // Ensure creation date is set
+      });
+    } else {
+      // Update existing user with latest LinkedIn data
+      user.email = email;
+      user.firstName = firstName;
+      user.lastName = lastName;
+      await user.save();
+    }
+    
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Get the intended redirect destination based on new user status
+    const redirectTo = isNewUser ? '/profile-setup' : (req.session.redirectTo || '/dashboard');
+    
+    console.log(`Redirecting LinkedIn auth to: ${process.env.FRONTEND_URL}/auth/callback?token=${token}&redirect=${encodeURIComponent(redirectTo)}&isNewUser=${isNewUser}`);
+    
+    // Redirect to frontend with token and isNewUser flag
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&redirect=${encodeURIComponent(redirectTo)}&isNewUser=${isNewUser ? 'true' : 'false'}`);
   } catch (error) {
-    console.error('LinkedIn redirect error:', error);
-    // Redirect to frontend with error instead of local route
-    res.redirect('https://meetkats.com/login?error=linkedin_redirect_failed');
+    console.error('Error during LinkedIn authentication:', error.response ? error.response.data : error.message);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
   }
 });
-router.get('/linkedin/callback', authController.linkedinCallback);
+
+// Google Routes - updated
+// Google Routes - improved new user detection
+router.get('/google', (req, res) => {
+  // Store the intended redirect destination if provided
+  const redirectTo = req.query.redirectTo || '/dashboard';
+  // Store it in the session for use after authentication
+  req.session.redirectTo = redirectTo;
+  
+  passport.authenticate('google')(req, res);
+});
+
+router.get('/google/callback',
+  passport.authenticate('google', { session: false, failureRedirect: '/login?error=auth_failed' }),
+  async (req, res) => {
+    try {
+      // Check if this is a new user
+      // Use both explicit isNewUser flag from passport strategy and created timestamp
+      const isNewUser = req.user.isNewUser || 
+          (req.user.createdAt && ((new Date() - new Date(req.user.createdAt)) < 60000)); // Created within last minute
+      
+      console.log('Is new user:', isNewUser);
+      console.log('User creation time:', req.user.createdAt);
+      
+      // Generate token
+      const token = jwt.sign(
+        { id: req.user._id, email: req.user.email },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      
+      // The redirectTo should be profile-setup for new users, otherwise use session or default
+      const redirectTo = isNewUser 
+        ? '/profile-setup' 
+        : (req.session.redirectTo || '/dashboard');
+      
+      // Add isNewUser flag to URL so frontend knows this is a new user
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?token=${token}&redirect=${encodeURIComponent(redirectTo)}&isNewUser=${isNewUser ? 'true' : 'false'}`;
+      
+      console.log(`Redirecting to: ${redirectUrl}`);
+      
+      // Redirect the user to the frontend with the token and new user flag
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Error in Google auth callback:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    }
+  }
+);
+
 
 module.exports = router;
