@@ -72,11 +72,13 @@ const jobRoutes = require('./routes/job.routes.js');
 const storyRoutes = require('./routes/story.routes.js');
 const portfolioRoutes = require('./routes/portfolio.routes.js');
 const notificationRoutes = require('./routes/notification.routes.js');
+const meRoutes = require('./routes/me.routes.js');
 
 // Mount auth routes at root level
 app.use('/auth', authRoutes); // This is the critical change for OAuth flows
 
 // Mount API routes
+app.use('/api', meRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/chats', chatRoutes);
