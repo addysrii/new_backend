@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/user/user.js');
 const twilio = require('twilio');
 const axios = require('axios');
-
+const jwt = require('jsonwebtoken')
 // Environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
