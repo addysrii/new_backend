@@ -562,6 +562,7 @@ exports.checkAuthProvider = async (req, res) => {
     });
   }
 };
+
 /**
  * @route   GET /auth/google/callback
  * @desc    Handle Google OAuth callback
@@ -623,6 +624,11 @@ exports.googleCallback = async (req, res) => {
   }
 };
 
+/**
+ * @route   GET /auth/linkedin
+ * @desc    Redirect to LinkedIn OAuth
+ * @access  Public
+ */
 exports.linkedinRedirect = (req, res) => {
   try {
     const state = crypto.randomBytes(16).toString('hex');
@@ -684,9 +690,9 @@ exports.linkedinCallback = async (req, res) => {
         params: {
           grant_type: 'authorization_code',
           code,
-          redirect_uri: `${process.env.BASE_URL || 'http://localhost:3000'}/auth/linkedin/callback`,
-          client_id: process.env.LINKEDIN_CLIENT_ID,
-          client_secret: process.env.LINKEDIN_CLIENT_SECRET
+          redirect_uri: REDIRECT_URI,
+          client_id: LINKEDIN_CLIENT_ID,
+          client_secret: LINKEDIN_CLIENT_SECRET
         },
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -776,83 +782,4 @@ exports.linkedinCallback = async (req, res) => {
   }
 };
 
-    
-    const accessToken = tokenResponse.data.access_token;
-    
-    
-    // Get user profile
-    const profileResponse = await axios.get(
-      'https://api.linkedin.com/v2/me',
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      }
-    );
-    
-    // Get email address
-    const emailResponse = await axios.get(
-      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      }
-    );
-    
-    const profile = profileResponse.data;
-    const linkedinId = profile.id;
-    const firstName = profile.localizedFirstName;
-    const lastName = profile.localizedLastName;
-    const email = emailResponse.data.elements[0]['handle~'].emailAddress;
-    
-    // Find or create user
-    let user = await User.findOne({ email });
-    
-    if (!user) {
-      user = await User.create({
-        email,
-        firstName,
-        lastName,
-        authProvider: 'linkedin',
-        linkedinId,
-        emailVerified: true, // LinkedIn verifies emails
-        createdAt: new Date()
-      });
-    } else if (user.authProvider !== 'linkedin') {
-      // User exists but with different auth provider
-      return res.redirect(`/login?error=account_exists&provider=${user.authProvider}`);
-    } else {
-      // Update profile if needed
-      user.firstName = firstName;
-      user.lastName = lastName;
-      user.linkedinId = linkedinId;
-      await user.save();
-    }
-    
-    // Generate token and update session
-    const token = generateToken(user._id, user.email);
-    
-    updateUserSession(
-      user, 
-      token, 
-      'web',
-      req.ip
-    );
-    
-    user.lastActive = new Date();
-    user.online = true;
-    
-    await user.save();
-    
-    // Redirect with token
-   const redirectUrl = customRedirectUrl || `https://meetkats.com/auth/success?token=${token}`;
-    
-    // Redirect with token
-    return res.redirect(redirectUrl);
-  } catch (error) {
-    console.error('LinkedIn callback error:', error);
-    return res.redirect('https://meetkats.com/login?error=linkedin_auth_failed');
-  }
-};
 module.exports = exports;
