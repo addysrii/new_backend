@@ -1,12 +1,11 @@
 // controllers/job.controller.js
 const Job = require('../models/discovery/jobs.js');
-const Company = require('../models/discovery/Company');
+const Company = require('../models/discovery/company.js');
 const User = require('../models/user/user.js');
-const fileUploadService = require('../services/file-upload.service');
-const notificationService = require('../services/notification.service');
+const fileUploadService = require('../services/file-upload.service.js');
+const notificationService = require('../services/notification.service.js');
 const { updateHashtags } = require('../utils/helpers');
 const mongoose = require('mongoose');
-
 /**
  * @route   POST /api/jobs
  * @desc    Create a new job listing
