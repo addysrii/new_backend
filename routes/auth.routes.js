@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken')
 const authController = require('../controllers/auth.controller.js');
 const { authenticateToken } = require('../middleware/auth.middleware.js');
 const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
