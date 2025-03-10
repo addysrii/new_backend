@@ -577,7 +577,6 @@ exports.googleCallback = async (req, res) => {
     }
     
     // Update user session and create JWT token
-    // Instead of returning JSON, redirect with token
     const token = generateToken(user._id, user.email);
     
     // Update session info
@@ -593,8 +592,11 @@ exports.googleCallback = async (req, res) => {
     
     await user.save();
     
+    // Use the custom redirectTo URL if provided, otherwise use default
+    const redirectUrl = req.redirectTo || `/auth/success?token=${token}`;
+    
     // Redirect to frontend with token
-    return res.redirect(`/auth/success?token=${token}`);
+    return res.redirect(redirectUrl);
   } catch (error) {
     console.error('Google callback error:', error);
     return res.redirect('/login?error=server_error');
