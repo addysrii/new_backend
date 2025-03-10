@@ -45,6 +45,8 @@ router.get('/google', (req, res, next) => {
   })(req, res, next);
 });
 
+// In auth.routes.js, update the Google callback route:
+
 router.get('/google/callback', 
   // Middleware to verify state and extract redirectTo
   (req, res, next) => {
@@ -52,7 +54,8 @@ router.get('/google/callback',
     const queryState = req.query.state;
     
     if (!cookieState || !queryState || cookieState !== queryState) {
-      return res.redirect('/login?error=invalid_state');
+      // Redirect to frontend with error instead of local route
+      return res.redirect('https://meetkats.com/login?error=invalid_state');
     }
     
     // Extract redirectTo from state
@@ -71,10 +74,15 @@ router.get('/google/callback',
   },
   passport.authenticate('google', { 
     session: false, 
-    failureRedirect: '/login?error=auth_failed' 
+    // Redirect to frontend with error
+    failureRedirect: 'https://meetkats.com/login?error=auth_failed' 
   }),
   authController.googleCallback
 );
+
+// Then update the googleCallback function in auth.controller.js:
+
+
 
 // LinkedIn authentication
 router.get('/linkedin', (req, res) => {
@@ -98,10 +106,10 @@ router.get('/linkedin', (req, res) => {
     res.redirect(authUrl);
   } catch (error) {
     console.error('LinkedIn redirect error:', error);
-    res.redirect('/login?error=linkedin_redirect_failed');
+    // Redirect to frontend with error instead of local route
+    res.redirect('https://meetkats.com/login?error=linkedin_redirect_failed');
   }
 });
-
 router.get('/linkedin/callback', authController.linkedinCallback);
 
 module.exports = router;
