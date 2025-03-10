@@ -1,35 +1,55 @@
+// routes/portfolio.routes.js
 const express = require('express');
 const router = express.Router();
-const postController = require('../controllers/postController');
-const { authenticateToken, isResourceOwner } = require('../middleware/auth');
-const { postUpload } = require('../config/cloudinary');
+const portfolioController = require('../controllers/portfolio.controller');
+const { authenticateToken } = require('../middleware/auth.middleware');
+const fileUploadService = require('../services/file-upload.service');
 
-// Get all posts (with pagination and filtering)
-router.get('/', authenticateToken, postController.getPosts);
+// Projects
+router.get('/projects', authenticateToken, portfolioController.getUserProjects);
+router.post('/projects',
+  authenticateToken,
+  fileUploadService.imageUpload.single('image'),
+  portfolioController.createProject
+);
+router.put('/projects/:id',
+  authenticateToken,
+  fileUploadService.imageUpload.single('image'),
+  portfolioController.updateProject
+);
+router.delete('/projects/:id', authenticateToken, portfolioController.deleteProject);
 
-// Get trending posts
-router.get('/trending', authenticateToken, postController.getTrendingPosts);
+// Achievements
+router.get('/achievements', authenticateToken, portfolioController.getUserAchievements);
+router.post('/achievements',
+  authenticateToken,
+  fileUploadService.imageUpload.single('image'),
+  portfolioController.createAchievement
+);
+router.put('/achievements/:id',
+  authenticateToken,
+  fileUploadService.imageUpload.single('image'),
+  portfolioController.updateAchievement
+);
+router.delete('/achievements/:id', authenticateToken, portfolioController.deleteAchievement);
+router.post('/achievements/:id/endorse', authenticateToken, portfolioController.endorseAchievement);
 
-// Create a new post (with media upload)
-router.post('/', authenticateToken, postUpload.array('media', 10), postController.createPost);
+// Streaks
+router.get('/streaks', authenticateToken, portfolioController.getUserStreaks);
+router.post('/streaks', authenticateToken, portfolioController.createStreak);
+router.put('/streaks/:id', authenticateToken, portfolioController.updateStreak);
+router.delete('/streaks/:id', authenticateToken, portfolioController.deleteStreak);
+router.post('/streaks/:id/check-in',
+  authenticateToken,
+  fileUploadService.evidenceUpload.single('evidence'),
+  portfolioController.checkInToStreak
+);
+router.post('/streaks/:id/support', authenticateToken, portfolioController.supportStreak);
 
-// Get a single post by ID
-router.get('/:id', authenticateToken, postController.getPostById);
-
-// Update a post
-router.put('/:id', authenticateToken, isResourceOwner('Post', 'id'), postController.updatePost);
-
-// Delete a post
-router.delete('/:id', authenticateToken, isResourceOwner('Post', 'id'), postController.deletePost);
-
-// React to a post (like, love, etc.)
-router.post('/:id/react', authenticateToken, postController.reactToPost);
-
-// Bookmark a post
-router.post('/:id/bookmark', authenticateToken, postController.bookmarkPost);
-
-// Comment related routes
-router.post('/:id/comments', authenticateToken, postController.addComment);
-router.delete('/:id/comments/:commentId', authenticateToken, postController.deleteComment);
+// Work experience and education
+router.put('/experience', authenticateToken, portfolioController.updateWorkExperience);
+router.put('/education', authenticateToken, portfolioController.updateEducation);
+router.put('/skills', authenticateToken, portfolioController.updateSkills);
+router.post('/skills/:skillId/endorse', authenticateToken, portfolioController.endorseSkill);
 
 module.exports = router;

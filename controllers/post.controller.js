@@ -1,9 +1,9 @@
-const Post = require('../models/post.js');
-const User = require('../models/user.js');
-const Hashtag = require('../models/Hashtag.js');
-const Mention = require('../models/Mention');
-const Notification = require('../models/Notification.js');
-const { updateHashtags, createNotification } = require('../utils/helpers');
+const Post = require('../models/content/post.js');
+const User = require('../models/user/user.js');
+const Hashtag = require('../models/discovery/Hashtag.js');
+const Mention = require('../models/social/mention.js');
+const Notification = require('../models/social/Notification.js');
+const { updateHashtags, createNotification } = require('../utils/helpers.js');
 
 /**
  * @route   POST /api/posts

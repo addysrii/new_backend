@@ -1,28 +1,31 @@
+// routes/story.routes.js
 const express = require('express');
 const router = express.Router();
 const storyController = require('../controllers/story.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const fileUploadService = require('../services/file-upload.service');
 
-// Create a story
-router.post('/', authenticateToken, fileUploadService.storyUpload.single('media'), storyController.createStory);
-
 // Get stories
 router.get('/', authenticateToken, storyController.getStories);
+router.get('/user/:userId', authenticateToken, storyController.getUserStories);
+router.get('/:id', authenticateToken, storyController.getStoryById);
 
-// Mark story as viewed
-router.post('/:storyId/view', authenticateToken, storyController.viewStory);
+// Create and interact with stories
+router.post('/',
+  authenticateToken,
+  fileUploadService.storyUpload.single('media'),
+  storyController.createStory
+);
 
-// React to a story
-router.post('/:storyId/react', authenticateToken, storyController.reactToStory);
+router.post('/:id/view', authenticateToken, storyController.viewStory);
+router.post('/:id/react', authenticateToken, storyController.reactToStory);
+router.post('/:id/reply', authenticateToken, storyController.replyToStory);
 
-// Reply to a story
-router.post('/:storyId/reply', authenticateToken, storyController.replyToStory);
-
-// Create highlight
+// Highlights
 router.post('/highlights', authenticateToken, storyController.createHighlight);
-
-// Get user's highlights
 router.get('/highlights/:userId', authenticateToken, storyController.getUserHighlights);
+router.get('/highlights/:id', authenticateToken, storyController.getHighlightById);
+router.put('/highlights/:id', authenticateToken, storyController.updateHighlight);
+router.delete('/highlights/:id', authenticateToken, storyController.deleteHighlight);
 
 module.exports = router;

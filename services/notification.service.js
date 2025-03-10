@@ -1,10 +1,6 @@
 const Notification = require('../models/social/Notification');
-const User = require('../models/user/User');
+const User = require('../models/user/user.js');
 
-/**
- * Notification Service
- * Handles creating and managing notifications
- */
 class NotificationService {
   /**
    * Create a notification 
@@ -13,15 +9,13 @@ class NotificationService {
    */
   async createNotification(data) {
     try {
-      // Validate required fields
+    
       if (!data.recipient || !data.type || !data.contentType || !data.contentId || !data.text) {
         throw new Error('Missing required notification fields');
       }
       
-      // Create the notification
+
       const notification = await Notification.create(data);
-      
-      // Return the created notification
       return notification;
     } catch (error) {
       console.error('Create notification error:', error);

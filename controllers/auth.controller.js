@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const User = require('../models/user,js');
+const User = require('../models/user/user.js');
 const twilio = require('twilio');
 const axios = require('axios');
 
@@ -562,5 +562,182 @@ exports.checkAuthProvider = async (req, res) => {
     });
   }
 };
+/**
+ * @route   GET /auth/google/callback
+ * @desc    Handle Google OAuth callback
+ * @access  Public
+ */
+exports.googleCallback = async (req, res) => {
+  try {
+    // The user is already authenticated by passport middleware
+    const { user, deviceToken } = req;
+    
+    if (!user) {
+      return res.redirect('/login?error=auth_failed');
+    }
+    
+    // Update user session and create JWT token
+    // Instead of returning JSON, redirect with token
+    const token = generateToken(user._id, user.email);
+    
+    // Update session info
+    updateUserSession(
+      user, 
+      token, 
+      deviceToken || 'web',
+      req.ip
+    );
+    
+    user.lastActive = new Date();
+    user.online = true;
+    
+    await user.save();
+    
+    // Redirect to frontend with token
+    return res.redirect(`/auth/success?token=${token}`);
+  } catch (error) {
+    console.error('Google callback error:', error);
+    return res.redirect('/login?error=server_error');
+  }
+};
 
+/**
+ * @route   GET /auth/linkedin/redirect
+ * @desc    Redirect to LinkedIn OAuth
+ * @access  Public
+ */
+exports.linkedinRedirect = (req, res) => {
+  try {
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    // Store state in session/cookie for validation on callback
+    res.cookie('linkedin_oauth_state', state, { 
+      httpOnly: true, 
+      maxAge: 10 * 60 * 1000 // 10 minutes
+    });
+    
+    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+      `response_type=code&` +
+      `client_id=${LINKEDIN_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+      `state=${state}&` +
+      `scope=r_liteprofile,r_emailaddress`;
+    
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('LinkedIn redirect error:', error);
+    res.redirect('/login?error=linkedin_redirect_failed');
+  }
+};
+
+/**
+ * @route   GET /auth/linkedin/callback
+ * @desc    Handle LinkedIn OAuth callback
+ * @access  Public
+ */
+exports.linkedinCallback = async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    const storedState = req.cookies.linkedin_oauth_state;
+    
+    // Validate state to prevent CSRF
+    if (!state || state !== storedState) {
+      return res.redirect('/login?error=invalid_state');
+    }
+    
+    // Clear the state cookie
+    res.clearCookie('linkedin_oauth_state');
+    
+    // Exchange code for access token
+    const tokenResponse = await axios.post(
+      'https://www.linkedin.com/oauth/v2/accessToken',
+      null,
+      {
+        params: {
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: REDIRECT_URI,
+          client_id: LINKEDIN_CLIENT_ID,
+          client_secret: LINKEDIN_CLIENT_SECRET
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    
+    const accessToken = tokenResponse.data.access_token;
+    
+    // Get user profile
+    const profileResponse = await axios.get(
+      'https://api.linkedin.com/v2/me',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    // Get email address
+    const emailResponse = await axios.get(
+      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    const profile = profileResponse.data;
+    const linkedinId = profile.id;
+    const firstName = profile.localizedFirstName;
+    const lastName = profile.localizedLastName;
+    const email = emailResponse.data.elements[0]['handle~'].emailAddress;
+    
+    // Find or create user
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      user = await User.create({
+        email,
+        firstName,
+        lastName,
+        authProvider: 'linkedin',
+        linkedinId,
+        emailVerified: true, // LinkedIn verifies emails
+        createdAt: new Date()
+      });
+    } else if (user.authProvider !== 'linkedin') {
+      // User exists but with different auth provider
+      return res.redirect(`/login?error=account_exists&provider=${user.authProvider}`);
+    } else {
+      // Update profile if needed
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.linkedinId = linkedinId;
+      await user.save();
+    }
+    
+    // Generate token and update session
+    const token = generateToken(user._id, user.email);
+    
+    updateUserSession(
+      user, 
+      token, 
+      'web',
+      req.ip
+    );
+    
+    user.lastActive = new Date();
+    user.online = true;
+    
+    await user.save();
+    
+    // Redirect with token
+    return res.redirect(`/auth/success?token=${token}`);
+  } catch (error) {
+    console.error('LinkedIn callback error:', error);
+    return res.redirect('/login?error=linkedin_auth_failed');
+  }
+};
 module.exports = exports;

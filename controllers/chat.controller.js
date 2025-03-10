@@ -1,6 +1,6 @@
-const ChatRoom = require('../models/chatRoom.js')
-const Message = require('../models/Message.js');
-const User = require('./models/user.js');
+const ChatRoom = require('../models/messaging/chatroom.js')
+const Message = require('../models/messaging/Message.js');
+const User = require('../models/user/user.js');
 
 // Create a new chat
 const createChat = async (req, res) => {

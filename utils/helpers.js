@@ -1,5 +1,5 @@
-const Notification = require('../models/Notification.js')
-const Hashtag = require('../models/Hashtag.js');
+const Notification = require('../models/social/Notification.js')
+const Hashtag = require('../models/discovery/Hashtag.js');
 
 /**
  * Create a notification
