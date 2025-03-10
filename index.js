@@ -73,7 +73,7 @@ const storyRoutes = require('./routes/story.routes.js');
 const portfolioRoutes = require('./routes/portfolio.routes.js');
 const notificationRoutes = require('./routes/notification.routes.js');
 const meRoutes = require('./routes/me.routes.js');
-
+const networkRoutes = require('./routes/network.routes.js'); 
 // Mount auth routes at root level
 app.use('/auth', authRoutes); // This is the critical change for OAuth flows
 
@@ -87,7 +87,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/stories', storyRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/notifications', notificationRoutes);
-
+app.use('/api/network', networkRoutes);
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
