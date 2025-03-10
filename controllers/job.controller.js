@@ -6,7 +6,6 @@ const fileUploadService = require('../services/file-upload.service.js');
 const notificationService = require('../services/notification.service.js');
 const { updateHashtags } = require('../utils/helpers');
 const mongoose = require('mongoose');
-
 /**
  * @route   POST /api/jobs
  * @desc    Create a new job listing
