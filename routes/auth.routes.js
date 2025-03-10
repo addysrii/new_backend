@@ -34,19 +34,17 @@ router.post('/phone/verify', authController.verifyPhone);
 // Two-factor authentication
 router.post('/2fa/setup', authenticateToken, authController.setupTwoFactor);
 
-// LinkedIn authentication routes
-router.get('/linkedin', (req, res) => {
-  // Store the intended redirect destination if provided
-  const redirectTo = req.query.redirectTo || '/dashboard';
-  console.log(`LinkedIn auth redirect with redirectTo: ${redirectTo}`);
-  
-  // Use LinkedIn redirect function from controller
-  authController.linkedinRedirect(req, res);
+// Debugging endpoint to verify configuration
+router.get('/google-debug', (req, res) => {
+  res.json({
+    googleConfigured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET,
+    baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+    callbackUrl: `${process.env.BASE_URL || 'http://localhost:3000'}/auth/google/callback`,
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000'
+  });
 });
 
-router.get('/linkedin/callback', authController.linkedinCallback);
-
-// Google authentication routes
+// FIXED Google authentication route - proper middleware usage
 router.get('/google', (req, res) => {
   // Store the intended redirect destination if provided
   const redirectTo = req.query.redirectTo || '/dashboard';
@@ -55,19 +53,27 @@ router.get('/google', (req, res) => {
   // Create a state parameter with redirect info
   const state = encodeStateWithRedirect(redirectTo);
   
+  // Use passport authenticate as a middleware that handles the request
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
     state
   })(req, res);
 });
 
-router.get('/google/callback',
+// FIXED Google callback route - proper middleware chain
+router.get('/google/callback', 
   passport.authenticate('google', { 
     session: false, 
     failureRedirect: `${FRONTEND_URL}/login?error=auth_failed` 
   }),
   authController.googleCallback
 );
+
+// LinkedIn authentication routes - if still needed, similar fix would apply
+if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
+  router.get('/linkedin', authController.linkedinRedirect);
+  router.get('/linkedin/callback', authController.linkedinCallback);
+}
 
 // Auth callback helper - used by frontend to process tokens
 router.get('/callback', (req, res) => {
