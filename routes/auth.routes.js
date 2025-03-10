@@ -174,6 +174,21 @@ router.get('/google/callback',
     }
   }
 );
+router.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('-password -deviceTokens -security.twoFactorSecret -security.twoFactorBackupCodes');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Get user data error:', error);
+    res.status(500).json({ error: 'Error fetching user data' });
+  }
+});
 
 
 module.exports = router;
