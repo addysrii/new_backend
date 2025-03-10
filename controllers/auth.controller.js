@@ -570,11 +570,24 @@ exports.checkAuthProvider = async (req, res) => {
 exports.googleCallback = async (req, res) => {
   try {
     // The user is already authenticated by passport middleware
-    const { user, deviceToken } = req;
+    const { user } = req;
     
     if (!user) {
-      // Redirect to frontend instead of local route
-      return res.redirect('https://meetkats.com/login?error=auth_failed');
+      // Redirect to frontend with error
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`);
+    }
+    
+    // Extract redirectTo from state if it exists
+    let redirectTo = null;
+    if (req.query.state) {
+      try {
+        const stateData = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+        if (stateData && stateData.redirectTo) {
+          redirectTo = stateData.redirectTo;
+        }
+      } catch (error) {
+        console.error('Error parsing state:', error);
+      }
     }
     
     // Update user session and create JWT token
@@ -584,32 +597,32 @@ exports.googleCallback = async (req, res) => {
     updateUserSession(
       user, 
       token, 
-      deviceToken || 'web',
+      req.query.deviceToken || 'web',
       req.ip
     );
     
     user.lastActive = new Date();
     user.online = true;
     
+    // Check if this is a new user
+    const isNewUser = user.isNewUser === true;
+    
     await user.save();
     
-    // Use the custom redirectTo URL if provided, otherwise use default frontend URL
-    const redirectUrl = req.redirectTo || `https://meetkats.com/auth/success?token=${token}`;
+    // Construct the redirect URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl = redirectTo || 
+      `${frontendUrl}/auth/callback?token=${token}&isNewUser=${isNewUser}`;
     
     // Redirect to frontend with token
     return res.redirect(redirectUrl);
   } catch (error) {
     console.error('Google callback error:', error);
-    // Redirect to frontend with error instead of local route
-    return res.redirect('https://meetkats.com/login?error=server_error');
+    // Redirect to frontend with error
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=server_error`);
   }
 };
 
-/**
- * @route   GET /auth/linkedin/redirect
- * @desc    Redirect to LinkedIn OAuth
- * @access  Public
- */
 exports.linkedinRedirect = (req, res) => {
   try {
     const state = crypto.randomBytes(16).toString('hex');
@@ -646,7 +659,7 @@ exports.linkedinCallback = async (req, res) => {
     
     // Validate state to prevent CSRF
     if (!state || !storedState || state !== storedState) {
-      return res.redirect('https://meetkats.com/login?error=invalid_state');
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=invalid_state`);
     }
     
     // Extract redirectTo from state if it exists
@@ -671,9 +684,9 @@ exports.linkedinCallback = async (req, res) => {
         params: {
           grant_type: 'authorization_code',
           code,
-          redirect_uri: REDIRECT_URI,
-          client_id: LINKEDIN_CLIENT_ID,
-          client_secret: LINKEDIN_CLIENT_SECRET
+          redirect_uri: `${process.env.BASE_URL || 'http://localhost:3000'}/auth/linkedin/callback`,
+          client_id: process.env.LINKEDIN_CLIENT_ID,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET
         },
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -681,6 +694,88 @@ exports.linkedinCallback = async (req, res) => {
       }
     );
     
+    const accessToken = tokenResponse.data.access_token;
+    
+    // Get user profile
+    const profileResponse = await axios.get(
+      'https://api.linkedin.com/v2/me',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    // Get email address
+    const emailResponse = await axios.get(
+      'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))',
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    const profile = profileResponse.data;
+    const linkedinId = profile.id;
+    const firstName = profile.localizedFirstName;
+    const lastName = profile.localizedLastName;
+    const email = emailResponse.data.elements[0]['handle~'].emailAddress;
+    
+    // Find or create user
+    let user = await User.findOne({ email });
+    let isNewUser = false;
+    
+    if (!user) {
+      user = await User.create({
+        email,
+        firstName,
+        lastName,
+        authProvider: 'linkedin',
+        linkedinId,
+        emailVerified: true, // LinkedIn verifies emails
+        createdAt: new Date()
+      });
+      isNewUser = true;
+    } else if (user.authProvider !== 'linkedin') {
+      // User exists but with different auth provider
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=account_exists&provider=${user.authProvider}`);
+    } else {
+      // Update profile if needed
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.linkedinId = linkedinId;
+    }
+    
+    // Generate token and update session
+    const token = generateToken(user._id, user.email);
+    
+    updateUserSession(
+      user, 
+      token, 
+      'web',
+      req.ip
+    );
+    
+    user.lastActive = new Date();
+    user.online = true;
+    
+    await user.save();
+    
+    // Construct the frontend URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    // Redirect with token and new user flag
+    const redirectUrl = customRedirectUrl || 
+      `${frontendUrl}/auth/callback?token=${token}&isNewUser=${isNewUser}`;
+    
+    return res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('LinkedIn callback error:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=linkedin_auth_failed`);
+  }
+};
+Last edited just now
     
     const accessToken = tokenResponse.data.access_token;
     
