@@ -751,7 +751,7 @@ exports.linkedinCallback = async (req, res) => {
     await user.save();
     
     // Redirect with token
-   onst redirectUrl = customRedirectUrl || `https://meetkats.com/auth/success?token=${token}`;
+   const redirectUrl = customRedirectUrl || `https://meetkats.com/auth/success?token=${token}`;
     
     // Redirect with token
     return res.redirect(redirectUrl);
