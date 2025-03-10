@@ -775,7 +775,7 @@ exports.linkedinCallback = async (req, res) => {
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=linkedin_auth_failed`);
   }
 };
-Last edited just now
+
     
     const accessToken = tokenResponse.data.access_token;
     
