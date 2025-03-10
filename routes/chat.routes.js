@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const chatController = require('../controllers/chat.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
+const chatController = require('../controllers/chat.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
 
 // Chat rooms
 router.post('/', authenticateToken, chatController.createChat);

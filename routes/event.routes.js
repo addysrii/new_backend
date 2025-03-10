@@ -1,10 +1,10 @@
 // routes/event.routes.js
 const express = require('express');
 const router = express.Router();
-const eventController = require('../controllers/event.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
-const { validateRequest, eventValidationRules } = require('../middleware/validation.middleware');
+const eventController = require('../controllers/event.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
+const { validateRequest, eventValidationRules } = require('../middleware/validation.middleware.js');
 
 // Get events and event categories
 router.get('/', authenticateToken, eventController.getEvents);

@@ -1,6 +1,6 @@
 // socket/chat.socket.js
-const ChatRoom = require('../models/messaging/chatroom');
-const Message = require('../models/messaging/Message');
+const ChatRoom = require('../models/messaging/chatroom.js');
+const Message = require('../models/messaging/Message.js');
 const User = require('../models/user/user.js');
 const mongoose = require('mongoose');
 

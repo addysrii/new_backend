@@ -1,9 +1,9 @@
 // controllers/story.controller.js
-const Story = require('../models/content/Story');
-const Highlight = require('../models/content/Highlight');
+const Story = require('../models/content/story.js');
+const Highlight = require('../models/content/highlight.js');
 const User = require('../models/user/user.js');
-const fileUploadService = require('../services/file-upload.service');
-const notificationService = require('../services/notification.service');
+const fileUploadService = require('../services/file-upload.service.js');
+const notificationService = require('../services/notification.service.js');
 const mongoose = require('mongoose');
 
 /**

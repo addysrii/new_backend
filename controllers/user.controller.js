@@ -1,7 +1,7 @@
 // controllers/user.controller.js
 const User = require('../models/user/user.js');
-const profileViewService = require('../services/profile-view.service');
-const fileUploadService = require('../services/file-upload.service');
+const profileViewService = require('../services/profile-view.service.js');
+const fileUploadService = require('../services/file-upload.service.js');
 const mongoose = require('mongoose');
 
 /**

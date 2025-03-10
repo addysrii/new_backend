@@ -1,4 +1,4 @@
-const Notification = require('../models/social/Notification');
+const Notification = require('../models/social/Notification.js');
 const User = require('../models/user/user.js');
 
 class NotificationService {

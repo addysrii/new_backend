@@ -1,6 +1,6 @@
 // socket/location.socket.js
 const User = require('../models/user/user.js');
-const locationService = require('../services/location.service');
+const locationService = require('../services/location.service.js');
 const mongoose = require('mongoose');
 
 /**

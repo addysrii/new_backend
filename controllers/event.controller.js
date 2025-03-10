@@ -1,9 +1,10 @@
 // controllers/event.controller.js
 const Event = require('../models/discovery/event.js');
 const User = require('../models/user/user.js');
-const fileUploadService = require('../services/file-upload.service');
-const notificationService = require('../services/notification.service');
-const { updateHashtags } = require('../utils/helpers');
+const fileUploadService = require('../services/file-upload.service.js');
+const notificationService = require('../services/notification.service.js');
+const { updateHashtags } = require('../utils/helpers.js');
+
 const mongoose = require('mongoose');
 
 /**

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const portfolioController = require('../controllers/portfolio.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
+const portfolioController = require('../controllers/portfolio.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
 
 // Projects
 router.post('/projects', authenticateToken, fileUploadService.postUpload.array('attachments', 5), portfolioController.createProject);

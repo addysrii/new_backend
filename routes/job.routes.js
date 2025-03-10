@@ -1,10 +1,10 @@
 // routes/job.routes.js
 const express = require('express');
 const router = express.Router();
-const jobController = require('../controllers/job.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
-const { validateRequest, jobValidationRules } = require('../middleware/validation.middleware');
+const jobController = require('../controllers/job.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
+const { validateRequest, jobValidationRules } = require('../middleware/validation.middleware.js');
 
 // Get jobs
 router.get('/', authenticateToken, jobController.getJobs);

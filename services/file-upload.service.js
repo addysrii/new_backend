@@ -1,5 +1,5 @@
 // services/file-upload.service.js
-const { cloudinary, dpUpload, postUpload, storyUpload, chatUpload,imageUpload,evidenceUpload } = require('../config/cloudinary');
+const { cloudinary, dpUpload, postUpload, storyUpload, chatUpload,imageUpload,evidenceUpload } = require('../config/cloudinary.js');
 const path = require('path');
 const fs = require('fs');
 const { promisify } = require('util');

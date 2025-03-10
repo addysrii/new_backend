@@ -1,10 +1,10 @@
 // routes/user.routes.js
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/user.controller');
-const { authenticateToken, rateLimiter } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
-const { validateRequest, profileValidationRules } = require('../middleware/validation.middleware');
+const userController = require('../controllers/user.controller.js');
+const { authenticateToken, rateLimiter } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
+const { validateRequest, profileValidationRules } = require('../middleware/validation.middleware.js');
 
 // Search and get users
 router.get('/', authenticateToken, userController.searchUsers);

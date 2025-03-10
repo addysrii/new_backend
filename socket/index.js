@@ -1,11 +1,11 @@
 // socket/index.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/user/user.js')
-const Message = require('../models/messaging/Message');
-const ChatRoom = require('../models/messaging/chatroom');
-const chatSocket = require('./chat.socket');
-const notificationSocket = require('./notification.socket');
-const locationSocket = require('./location.socket');
+const Message = require('../models/messaging/Message.js');
+const ChatRoom = require('../models/messaging/chatroom.js');
+const chatSocket = require('./chat.socket.js');
+const notificationSocket = require('./notification.socket.js');
+const locationSocket = require('./location.socket.js');
 
 /**
  * Socket.io setup and connection handler

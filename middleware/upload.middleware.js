@@ -1,4 +1,4 @@
-const fileUploadService = require('../services/file-upload.service');
+const fileUploadService = require('../services/file-upload.service.js');
 
 /**
  * Middleware for profile picture uploads

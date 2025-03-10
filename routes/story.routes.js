@@ -1,9 +1,9 @@
 // routes/story.routes.js
 const express = require('express');
 const router = express.Router();
-const storyController = require('../controllers/story.controller');
-const { authenticateToken } = require('../middleware/auth.middleware');
-const fileUploadService = require('../services/file-upload.service');
+const storyController = require('../controllers/story.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware.js');
+const fileUploadService = require('../services/file-upload.service.js');
 
 // Get stories
 router.get('/', authenticateToken, storyController.getStories);
